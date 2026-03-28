@@ -18,10 +18,18 @@ export class InputManager extends EventEmitter {
     this.renderer = renderer;
     this.enabled  = true;
 
-    /** @type {Map<number, { x: number, y: number }>} Active touch points in game coords */
+    /** @type {Map<number|string, { x: number, y: number }>} Active touch points in game coords */
     this.activeTouches = new Map();
 
     this._bindEvents();
+  }
+
+  /** Gets the first currently active pointer/finger. Useful for continuous dragging mechanics */
+  getActivePointer() {
+    for (const [id, pos] of this.activeTouches) {
+      return pos;
+    }
+    return null;
   }
 
   // ─────────────────────────────────────────────
@@ -53,6 +61,7 @@ export class InputManager extends EventEmitter {
     e.preventDefault();
     if (!this.enabled) return;
     const { x, y } = this._mouseToGame(e);
+    this.activeTouches.set('mouse', {x, y});
     this.emit(GameEvents.INPUT_DOWN, { x, y, time: performance.now(), id: 'mouse' });
   }
 
@@ -60,12 +69,16 @@ export class InputManager extends EventEmitter {
     e.preventDefault();
     if (!this.enabled) return;
     const { x, y } = this._mouseToGame(e);
+    this.activeTouches.delete('mouse');
     this.emit(GameEvents.INPUT_UP, { x, y, time: performance.now(), id: 'mouse' });
   }
 
   _onMouseMove(e) {
     if (!this.enabled) return;
     const { x, y } = this._mouseToGame(e);
+    if (this.activeTouches.has('mouse')) {
+      this.activeTouches.set('mouse', {x, y});
+    }
     this.emit(GameEvents.INPUT_MOVE, { x, y, time: performance.now(), id: 'mouse' });
   }
 

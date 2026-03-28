@@ -12,13 +12,18 @@ export class GameScreen extends BaseScreen {
     super('GameScreen');
     
     this.effects = [];
+
+    // Load static images for EBA Dual Screen Backgrounds
+    this.storyImg = new Image();
+    this.storyImg.src = '/src/assets/story.png';
+    this.agentsImg = new Image();
+    this.agentsImg.src = '/src/assets/agents.png';
   }
 
   init(engine) {
     super.init(engine);
     console.log('[GameScreen] Initialized');
-    
-    // Listen for events 
+    // ...
     this._onGameOver = () => this.engine.setState(GameState.RESULTS);
     
     this._onHit = (result) => {
@@ -30,18 +35,30 @@ export class GameScreen extends BaseScreen {
     };
 
     this.engine.on('game:over', this._onGameOver);
-    // Observe that the events from ScoreEngine were forwarded via GameEvents in engine constants.
-    // They are matching the string literals we used in events.js 
     this.engine.on('game:hit', this._onHit);
     this.engine.on('game:miss', this._onMiss);
   }
 
   update(time, delta) {
-    // Cleanup dead effects
     this.effects = this.effects.filter(e => !e.isDead());
   }
 
   draw(renderer, time, delta) {
+    // 1. Draw Dual Screen Backgrounds
+    if (this.storyImg.complete) {
+      renderer.drawImage(this.storyImg, 0, 0, 512, 384, { topScreen: true });
+    }
+    
+    if (this.agentsImg.complete) {
+      // Agents occupy the active gameplay screen (bottom)
+      // Dimmed to distinct gameplay mechanics
+      renderer.drawImage(this.agentsImg, 0, 0, 512, 384, { alpha: 0.4 });
+    }
+
+    // 2. Draw standard DS gap/divider
+    renderer.drawDivider();
+
+    // 3. Draw active Game Objects
     const activeObjects = this.engine.timeline.getActiveObjects(this.engine.audio.getCurrentTime());
     
     // Draw all objects (older first back-to-front)

@@ -86,7 +86,7 @@ export class GameEngine extends EventEmitter {
       this._activeScreen.update(time, delta);
     }
 
-    // During gameplay, check for missed objects
+    // During gameplay, check for missed objects and update active sliding trackers
     if (this.state === GameState.PLAYING) {
       this._processGameplayFrame();
     }
@@ -110,6 +110,11 @@ export class GameEngine extends EventEmitter {
 
     // Get active objects from timeline
     const active = this.timeline.getActiveObjects(currentTime);
+
+    // Give objects a chance to update their own state continuously (e.g. Sliders tracking input)
+    for (const obj of active) {
+      if (obj.update) obj.update(currentTime, this);
+    }
 
     // Check for objects that have passed their miss window
     for (const obj of this.timeline.objects) {
@@ -251,10 +256,18 @@ export class GameEngine extends EventEmitter {
     // Hit the frontmost (earliest) object within range
     for (const obj of active) {
       if (obj.state !== 'waiting' && obj.state !== 'active') continue;
-      if (obj.checkHit?.(x, y, time)) {
+      
+      const hitResult = obj.checkHit?.(x, y, time) || false;
+      if (hitResult) {
         const timingError = time - obj.time;
         this.score.registerHit(timingError, obj.x, obj.y);
-        obj.state = 'done';
+        
+        // If the object transitioned itself (like Slider to 'sliding'), respect it.
+        // Otherwise, standard HitCircles just die ('done').
+        if (obj.state === 'waiting' || obj.state === 'active') {
+           obj.state = 'done';
+        }
+        
         this.audio.playHitSound(obj.hitSound ?? 'normal');
         return true;
       }
@@ -273,11 +286,23 @@ export class GameEngine extends EventEmitter {
     for (const obj of active) {
       if (obj.state !== 'waiting' && obj.state !== 'active') continue;
       if (obj.comboNumber === number) {
-        const timingError = time - obj.time;
-        this.score.registerHit(timingError, obj.x, obj.y);
-        obj.state = 'done';
-        this.audio.playHitSound(obj.hitSound ?? 'normal');
-        return true;
+        
+        // Emulate a perfect click on center
+        const hitResult = obj.checkHit?.(obj.x, obj.y, time) || false;
+        
+        if (hitResult) {
+          const timingError = time - obj.time;
+          this.score.registerHit(timingError, obj.x, obj.y);
+          
+          if (obj.state === 'sliding') {
+             obj.keyboardAutomated = true; // Testing shortcut for notebooks
+          } else if (obj.state === 'waiting' || obj.state === 'active') {
+             obj.state = 'done';
+          }
+          
+          this.audio.playHitSound(obj.hitSound ?? 'normal');
+          return true;
+        }
       }
     }
     return false;

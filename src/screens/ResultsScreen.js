@@ -56,8 +56,10 @@ export class ResultsScreen extends BaseScreen {
               <p style="font-family:var(--font-display); font-size:2rem; color:var(--text-secondary); margin-top:2rem;">OVERALL RANK</p>
            </div>
         </div>
-
-        <button id="btn-done" class="premium-btn primary" style="position:absolute; bottom:50px; right:50px; font-size:2rem;">CONTINUE</button>
+        
+        <div style="position:absolute; bottom:5%; width:100%; display:flex; justify-content:center; z-index:100;">
+           <button id="btn-done" class="premium-btn primary" style="font-size:2.5rem; padding: 1rem 4rem;">CONTINUE</button>
+        </div>
       </div>
     `;
 

@@ -49,6 +49,55 @@ export class Slider {
 
   reset() {
     this.state = 'waiting';
+    this.keyboardAutomated = false;
+  }
+
+  /**
+   * Called every frame if this object is active
+   */
+  update(currentTime, engine) {
+    if (this.state === 'sliding') {
+       if (currentTime >= this.endTime) {
+          this.state = 'done';
+          engine.score.registerHit(0, this.x, this.y); // Reward for holding until the end
+          engine.audio.playHitSound(this.hitSound ?? 'normal');
+          return;
+       }
+       
+       if (this.keyboardAutomated) {
+          // Feature: When testing on a notebook without touch via QWERT keys, 
+          // allow auto-tracking the rest of the slider to test aesthetics.
+          return;
+       }
+
+       // Ensure user is tracking the slider ball manually
+       const ptr = engine.input.getActivePointer();
+       if (!ptr) {
+          // Pointer released completely!
+          this.state = 'missed';
+          engine.score.registerMiss(this.x, this.y);
+          return;
+       }
+
+       // Identify current ideal position of the moving ball
+       const progress = (currentTime - this.time) / (this.endTime - this.time);
+       const slideProgress = (progress * this.slides) % 1;
+       const forward = Math.floor(progress * this.slides) % 2 === 0;
+       const t = forward ? slideProgress : 1 - slideProgress;
+
+       const currentPos = bezierAt(this.curvePoints, t);
+       
+       // Measure distance to standard cursor
+       const dx = ptr.x - currentPos.x;
+       const dy = ptr.y - currentPos.y;
+       const dist = Math.sqrt(dx*dx + dy*dy);
+       
+       // Forgiving radius to allow fast rhythmic drags
+       if (dist > this.radius * 2.5) { 
+          this.state = 'missed';
+          engine.score.registerMiss(currentPos.x, currentPos.y);
+       }
+    }
   }
 
   /**
@@ -82,6 +131,17 @@ export class Slider {
          fill: this.comboColor,
          stroke: '#ffffff',
          strokeWidth: 3,
+         alpha: 1
+       });
+
+       // Draw combo number / key map like HitCircle
+       const labels = ['Q', 'W', 'E', 'R', 'T'];
+       const kLabel = labels[(this.comboNumber - 1) % 5] || '?';
+       const textToShow = `${this.comboNumber} [${kLabel}]`;
+
+       renderer.drawText(textToShow, this.x, this.y, {
+         font: `bold ${Math.max(14, this.radius * 0.45)}px Inter`,
+         fill: '#ffffff',
          alpha: 1
        });
     }
@@ -119,10 +179,9 @@ export class Slider {
     if (this.state === 'waiting' || this.state === 'active') {
       const hit = pointInCircle(inputX, inputY, this.x, this.y, this.radius);
       if (hit) {
-        this.state = 'sliding'; // Head hit, transition to sliding
-        // Don't mark as 'done' until sliding finishes
+        this.state = 'sliding'; // Head hit perfectly, transition to dragging phase!
       }
-      return hit; // We return true to reward the head hit
+      return hit;
     }
     return false;
   }

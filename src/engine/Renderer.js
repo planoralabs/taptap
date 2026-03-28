@@ -71,15 +71,18 @@ export class Renderer {
   }
 
   _calcPlayfield(vw, vh) {
-    // Fit osu! 4:3 playfield inside viewport letterboxed
-    // Allow some padding so UI can live in the margins
-    const padding = 0.85; // playfield occupies 85% of viewport height
-    const scaleByH = (vh * padding) / OSU_HEIGHT;
-    const scaleByW = (vw * padding) / OSU_WIDTH;
+    // We want a dual screen 512 x 768 space.
+    // Allow minimal padding.
+    const padding = 0.95; 
+    const LOGICAL_W = 512;
+    const LOGICAL_H = 768; // Two 384 chunks stacked
+
+    const scaleByH = (vh * padding) / LOGICAL_H;
+    const scaleByW = (vw * padding) / LOGICAL_W;
     const scale    = Math.min(scaleByH, scaleByW);
 
-    const pw = OSU_WIDTH  * scale;
-    const ph = OSU_HEIGHT * scale;
+    const pw = LOGICAL_W * scale;
+    const ph = LOGICAL_H * scale;
     const px = (vw - pw) / 2;
     const py = (vh - ph) / 2;
 
@@ -92,10 +95,21 @@ export class Renderer {
 
   /**
    * Convert osu! game coordinates → viewport (CSS) coordinates.
-   * @param {number} gx @param {number} gy
-   * @returns {{ x: number, y: number }}
+   * OSU coordinates (0-384) are pushed into the BOTTOM half of the 768 height.
    */
   gameToViewport(gx, gy) {
+    // Gameplay is on the bottom screen, meaning y + 384
+    let virtualY = gy + 384; 
+    return {
+      x: this.playfield.x + gx * this.playfield.scale,
+      y: this.playfield.y + virtualY * this.playfield.scale,
+    };
+  }
+
+  /**
+   * Convert Top Screen virtual coords -> viewport coords.
+   */
+  topScreenToViewport(gx, gy) {
     return {
       x: this.playfield.x + gx * this.playfield.scale,
       y: this.playfield.y + gy * this.playfield.scale,
@@ -104,21 +118,23 @@ export class Renderer {
 
   /**
    * Convert viewport (CSS) coordinates → osu! game coordinates.
-   * @param {number} vx @param {number} vy
-   * @returns {{ x: number, y: number }}
    */
   viewportToGame(vx, vy) {
+    // Determine raw Y in the 768-pixel tall virtual logic space
+    const virtualY = (vy - this.playfield.y) / this.playfield.scale;
+    // Map virtualY back to OSU coordinates (subtract 384)
     return {
       x: (vx - this.playfield.x) / this.playfield.scale,
-      y: (vy - this.playfield.y) / this.playfield.scale,
+      y: virtualY - 384,
+      rawY: virtualY
     };
   }
 
-  /**
-   * Scale a radius from osu! space to viewport space.
-   * @param {number} r
-   * @returns {number}
-   */
+  /** Convert CSS pixels to osu! coordinates */
+  canvasToOsu(clientX, clientY) {
+    return this.viewportToGame(clientX, clientY);
+  }
+
   scaleRadius(r) {
     return r * this.playfield.scale;
   }
@@ -181,12 +197,41 @@ export class Renderer {
   }
 
   /**
+   * Draw an image in game coordinates
+   */
+  drawImage(img, gx, gy, gw, gh, options = {}) {
+    const isTop = options.topScreen ?? false;
+    const { x, y } = isTop ? this.topScreenToViewport(gx, gy) : this.gameToViewport(gx, gy);
+    const w = this.scaleRadius(gw);
+    const h = this.scaleRadius(gh);
+    this.ctx.save();
+    this.ctx.globalAlpha = options.alpha ?? 1;
+    this.ctx.drawImage(img, x, y, w, h);
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw the Nintendo DS hinge/divider separating Top from Bottom Screen.
+   */
+  drawDivider() {
+    const { x, y } = this.topScreenToViewport(0, 384);
+    const w = this.scaleRadius(512);
+    this.ctx.save();
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillRect(x, y - 6, w, 12);
+    this.ctx.strokeStyle = '#444';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x, y - 6, w, 12);
+    this.ctx.restore();
+  }
+
+  /**
    * Draw a line in game coordinates.
    * @param {number} x1 @param {number} y1 @param {number} x2 @param {number} y2
    */
-  drawLine(x1, y1, x2, y2, { stroke = '#fff', strokeWidth = 2, alpha = 1 } = {}) {
-    const a = this.gameToViewport(x1, y1);
-    const b = this.gameToViewport(x2, y2);
+  drawLine(x1, y1, x2, y2, { stroke = '#fff', strokeWidth = 2, alpha = 1, topScreen = false } = {}) {
+    const a = topScreen ? this.topScreenToViewport(x1, y1) : this.gameToViewport(x1, y1);
+    const b = topScreen ? this.topScreenToViewport(x2, y2) : this.gameToViewport(x2, y2);
     const ctx = this.ctx;
     ctx.save();
     ctx.globalAlpha = alpha;
