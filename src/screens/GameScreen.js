@@ -15,11 +15,11 @@ export class GameScreen extends BaseScreen {
 
     // Load static images for EBA Dual Screen Backgrounds
     this.storyImg = new Image();
-    this.storyImg.src = '/src/assets/story.png';
+    this.storyImg.src = '/assets/story.png';
     this.agentsImg = new Image();
-    this.agentsImg.src = '/src/assets/agents.png';
+    this.agentsImg.src = '/assets/agents.png';
     this.agentsFailImg = new Image();
-    this.agentsFailImg.src = '/src/assets/agents_fail.png';
+    this.agentsFailImg.src = '/assets/agents_fail.png';
     
     this.lastMissTime = 0;
   }

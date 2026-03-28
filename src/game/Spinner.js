@@ -16,7 +16,7 @@ export class Spinner {
     
     // Vinyl Record UI
     this.vinylImg = new Image();
-    this.vinylImg.src = '/src/assets/vinyl.png';
+    this.vinylImg.src = '/assets/vinyl.png';
   }
 
   reset() {
