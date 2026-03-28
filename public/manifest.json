@@ -1,0 +1,17 @@
+{
+  "name": "TapTap",
+  "short_name": "TapTap",
+  "description": "Browser-based rhythm game inspired by Elite Beat Agents",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0a1a",
+  "theme_color": "#ff6b35",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
