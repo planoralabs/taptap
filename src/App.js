@@ -12,6 +12,7 @@ import { ResultsScreen } from './screens/ResultsScreen.js';
 // Dummy game data for phase 1 demo
 import { HitCircle } from './game/HitCircle.js';
 import { Slider } from './game/Slider.js';
+import { Spinner } from './game/Spinner.js';
 
 // Basic dummy parser data generator
 function createDemoBeatmapAndObjects(engineTimeline) {
@@ -24,7 +25,7 @@ function createDemoBeatmapAndObjects(engineTimeline) {
   const msPerBeat = 60000 / 128; 
   const objects = [];
   
-  for(let i=0; i<30; i++) {
+  for(let i=0; i<24; i++) {
      // Beat times: beat 2, 4, 6...
      const beat = i * 2 + 2;
      const time = beat * msPerBeat;
@@ -59,6 +60,14 @@ function createDemoBeatmapAndObjects(engineTimeline) {
        objects.push(c);
      }
   }
+
+  // Create a massive Spinner at the end of the song
+  // Audio limit is 64 beats. The spinner starts around beat 52 and ends at beat 60.
+  const lastTime = 52 * msPerBeat; 
+  const spinnerRaw = { x: 256, y: 192, time: lastTime, endTime: lastTime + 4000, type: 8, hitSound: 0, isCircle: false, isSlider: false, isSpinner: true };
+  
+  const spinnerObj = new Spinner(spinnerRaw, engineTimeline);
+  objects.push(spinnerObj);
 
   return { beatmap, objects };
 }

@@ -1,99 +1,106 @@
-/**
- * @fileoverview Spinner implementation.
- */
-
-import { OSU_WIDTH, OSU_HEIGHT } from '../utils/constants.js';
-import { pointInCircle } from '../utils/math.js';
+import { CS_TO_RADIUS } from '../utils/constants.js';
 
 export class Spinner {
   constructor(raw, timeline) {
-    this.x = OSU_WIDTH / 2; // Spinners are typically centered
-    this.y = OSU_HEIGHT / 2;
+    this.x = 256;
+    this.y = 192;
     this.time = raw.time;
-    this.endTime = raw.endTime || this.time + 1000;
+    this.endTime = raw.endTime;
     this.type = raw.type;
 
     this.timeline = timeline;
     this.state = 'waiting';
 
-    this.rotation = 0; // Current visual rotation
-    this.spinVelocity = 0; // RPM
-    this.lastInputAngle = 0;
+    this.rotation = 0;
+    this.spins = 0;
     
-    // MVP: RPM calculation
-    this.lastTime = 0;
+    // Vinyl Record UI
+    this.vinylImg = new Image();
+    this.vinylImg.src = '/src/assets/vinyl.png';
   }
 
   reset() {
     this.state = 'waiting';
     this.rotation = 0;
-    this.spinVelocity = 0;
+    this.spins = 0;
+    this.lastAngle = undefined;
+  }
+
+  update(currentTime, engine) {
+    if (this.state === 'waiting' && currentTime >= this.time && currentTime < this.endTime) {
+       this.state = 'active';
+    }
+
+    if (this.state === 'active') {
+       if (currentTime >= this.endTime) {
+          this.state = 'done';
+          if (this.spins > 3) { // Goal: Ensure robust spinning (3 full cycles)
+              engine.score.registerHit(0, this.x, this.y);
+              engine.audio.playHitSound('normal');
+          } else {
+              engine.score.registerMiss(this.x, this.y);
+          }
+          return;
+       }
+
+       // Track Spin
+       const ptr = engine.input.getActivePointer();
+       if (ptr) {
+          const dx = ptr.x - this.x;
+          const dy = ptr.y - this.y;
+          const angle = Math.atan2(dy, dx);
+          
+          if (this.lastAngle !== undefined) {
+             let delta = angle - this.lastAngle;
+             // Ensure shortest path in radians
+             if (delta > Math.PI) delta -= Math.PI * 2;
+             if (delta < -Math.PI) delta += Math.PI * 2;
+             
+             this.rotation += delta;
+             this.spins = Math.abs(this.rotation) / (Math.PI * 2);
+          }
+          this.lastAngle = angle;
+       } else {
+          // You dropped the needle! No rotating if pointer not down
+          this.lastAngle = undefined;
+       }
+    }
   }
 
   draw(renderer, currentTime) {
-    if (this.state === 'done' || this.state === 'missed') return;
+    if (this.state !== 'active') return;
 
-    if (currentTime >= this.time && currentTime <= this.endTime) {
-      if(this.state === 'waiting') this.state = 'active';
-      this.state = 'sliding'; // Use sliding state equivalent
-      
-      const cx = this.x;
-      const cy = this.y;
-      
-      const progress = (currentTime - this.time) / (this.endTime - this.time);
-
-      // Outer ring
-      renderer.drawCircle(cx, cy, 180, {
-         fill: 'rgba(0,100,255,0.2)',
-         stroke: '#ffffff',
-         strokeWidth: 5,
-         alpha: 1
-      });
-
-      // Inner disc (rotates)
-      renderer.ctx.save();
-      const viewportCenter = renderer.gameToViewport(cx, cy);
-      renderer.ctx.translate(viewportCenter.x, viewportCenter.y);
-      renderer.ctx.rotate(this.rotation);
-      
-      const rScale = renderer.scaleRadius(1);
-      
+    renderer.ctx.save();
+    
+    const vp = renderer.gameToViewport(this.x, this.y);
+    renderer.ctx.translate(vp.x, vp.y);
+    renderer.ctx.rotate(this.rotation);
+    
+    // Massive vinyl fills the bottom screen
+    const r = renderer.scaleRadius(160); 
+    
+    if (this.vinylImg.complete) {
+      renderer.ctx.drawImage(this.vinylImg, -r, -r, r*2, r*2);
+    } else {
       renderer.ctx.beginPath();
-      renderer.ctx.arc(0, 0, 150 * rScale, 0, Math.PI * 2);
-      renderer.ctx.fillStyle = 'rgba(0,200,255,0.4)';
-      renderer.ctx.fill();
-      
-      // Spinner meter/progress (shrinking circle)
-      const shrinkRadius = 150 * (1 - progress);
-      renderer.ctx.beginPath();
-      renderer.ctx.arc(0, 0, shrinkRadius * rScale, 0, Math.PI * 2);
-      renderer.ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      renderer.ctx.fill();
-      
-      renderer.ctx.restore();
+      renderer.ctx.arc(0, 0, r, 0, Math.PI*2);
+      renderer.ctx.strokeStyle = '#0ff';
+      renderer.ctx.lineWidth = 10;
+      renderer.ctx.stroke();
     }
+    
+    renderer.ctx.restore();
+    
+    // Render text with no rotation
+    renderer.drawText(`SPINS: ${Math.floor(this.spins)} / 3`, this.x, this.y + 140, { 
+      font: `bold 24px Inter`, 
+      fill: '#ffffff',
+      alpha: 1
+    });
   }
 
-  // Spinners use input differently (continuous tracking), but we implement checkHit for polyfill
-  checkHit(inputX, inputY, inputTime) {
-    if (inputTime >= this.time && inputTime <= this.endTime) {
-      // Calculate angle
-      const dx = inputX - this.x;
-      const dy = inputY - this.y;
-      const angle = Math.atan2(dy, dx);
-      
-      if (this.lastInputAngle !== 0) {
-        let delta = angle - this.lastInputAngle;
-        // Fix wraparound
-        if (delta > Math.PI) delta -= Math.PI * 2;
-        if (delta < -Math.PI) delta += Math.PI * 2;
-        
-        this.rotation += delta;
-        // In a full implementation, we'd calculate RPM here and award points
-      }
-      this.lastInputAngle = angle;
-      return true; // Register as "interacting"
-    }
-    return false;
+  checkHit(x, y, time) {
+    // Spinners are processed entirely via the Update Loop pointer dragging.
+    return false; 
   }
 }

@@ -327,8 +327,19 @@ export class GameEngine extends EventEmitter {
       }
     });
 
-    // Forward audio events
-    this.audio.on(GameEvents.AUDIO_END, () => this.emit(GameEvents.AUDIO_END));
+    // Forward audio events and enforce game completion if audio stops
+    this.audio.on(GameEvents.AUDIO_END, () => {
+      this.emit(GameEvents.AUDIO_END);
+      if (this.state === GameState.PLAYING) {
+        // Enforce all remaining active items to missed
+        for (const obj of this.timeline.objects) {
+           if (obj.state !== 'done' && obj.state !== 'missed') {
+              obj.state = 'missed';
+           }
+        }
+        this._onSongComplete();
+      }
+    });
 
     // Score events
     this.score.on(GameEvents.HIT_RESULT,   (e) => this.emit(GameEvents.HIT_RESULT, e));

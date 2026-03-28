@@ -18,6 +18,10 @@ export class GameScreen extends BaseScreen {
     this.storyImg.src = '/src/assets/story.png';
     this.agentsImg = new Image();
     this.agentsImg.src = '/src/assets/agents.png';
+    this.agentsFailImg = new Image();
+    this.agentsFailImg.src = '/src/assets/agents_fail.png';
+    
+    this.lastMissTime = 0;
   }
 
   init(engine) {
@@ -32,6 +36,7 @@ export class GameScreen extends BaseScreen {
 
     this._onMiss = (result) => {
        this.effects.push(new HitEffect(result.x, result.y, result.label, 'miss'));
+       this.lastMissTime = performance.now();
     };
 
     this.engine.on('game:over', this._onGameOver);
@@ -49,10 +54,34 @@ export class GameScreen extends BaseScreen {
       renderer.drawImage(this.storyImg, 0, 0, 512, 384, { topScreen: true });
     }
     
-    if (this.agentsImg.complete) {
-      // Agents occupy the active gameplay screen (bottom)
-      // Dimmed to distinct gameplay mechanics
-      renderer.drawImage(this.agentsImg, 0, 0, 512, 384, { alpha: 0.4 });
+    const now = performance.now();
+    const isFailing = (now - this.lastMissTime < 800); // Agents stumble for 800ms
+    const activeImg = isFailing ? this.agentsFailImg : this.agentsImg;
+    
+    if (activeImg.complete) {
+      let scale = 1.0;
+      if (!isFailing) {
+         // BPM is 128, one beat every 468.75ms
+         const beatMs = 60000 / 128;
+         const currentBeat = (this.engine.audio.getCurrentTime() / beatMs) % 1; 
+         // pop up and shrink (bouncing sync to audio!)
+         scale = 1.0 + Math.max(0, 1 - (currentBeat * 2)) * 0.05; 
+      }
+      
+      const gw = 512 * scale;
+      const gh = 384 * scale;
+      const gx = -(gw - 512) / 2;
+      const gy = -(gh - 384) / 2;
+      
+      renderer.drawImage(activeImg, gx, gy, gw, gh, { alpha: isFailing ? 0.7 : 0.4 });
+    }
+    
+    if (isFailing) {
+       renderer.ctx.save();
+       const vp = renderer.gameToViewport(0,0);
+       renderer.ctx.fillStyle = 'rgba(255, 0, 0, 0.25)'; // Fail red flash over the playfield
+       renderer.ctx.fillRect(vp.x, vp.y, renderer.scaleRadius(512), renderer.scaleRadius(384));
+       renderer.ctx.restore();
     }
 
     // 2. Draw standard DS gap/divider
